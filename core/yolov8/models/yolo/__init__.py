@@ -1,8 +1,8 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 
 from core.yolov8.models.yolo import detect
-# from core.yolov8.models.yolo import obb
+#from core.yolov8.models.yolo import obb
 
-from .model import YOLO
+from .model import YOLO, YOLOV8
 
-__all__ = "detect", "obb", "YOLO"
+__all__ = "detect", "YOLO", "YOLOV8",  # "obb"

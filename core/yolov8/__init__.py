@@ -2,6 +2,6 @@
 
 __version__ = "8.1.1"
 
-from core.yolov8.models import YOLO
+from core.yolov8.models import YOLO, YOLOV8
 
-__all__ = "__version__", "YOLO"
+__all__ = "__version__", "YOLO", "YOLOV8"
