@@ -1,6 +1,6 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 
-from core.yolov8.engine.predictor import BasePredictor
+from core.yolov8.models.yolo.detect import BasePredictor
 from core.yolov8.engine.results import Results
 from core.yolov8.utils import ops
 
