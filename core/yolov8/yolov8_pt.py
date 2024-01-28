@@ -6,11 +6,11 @@ import torch
 import torch.nn
 
 
-from core.yolov8.models.yolo import YOLO
+from core.yolov8.models.yolo import YOLOV8
 
 
 if __name__ == "__main__":
-    model = YOLO('yolov8n.pt')
+    model = YOLOV8('yolov8n.pt')
 
-    # result = model("/home/dongle94/Pictures/exercise.jpg")
+    result = model("/home/dongle94/Pictures/exercise.jpg")
     # print(result)

@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Union
 
 from core.yolov8.cfg import TASK2DATA, get_cfg, get_save_dir
-from core.yolov8.nn.tasks import attempt_load_one_weight, guess_model_task, nn, yaml_model_load
+from core.yolov8.nn import attempt_load_one_weight, guess_model_task
+from core.yolov8.nn.tasks import nn, yaml_model_load
 from core.yolov8.utils import ASSETS, DEFAULT_CFG_DICT, RANK, SETTINGS, callbacks, checks, emojis, yaml_load
 
 
@@ -464,7 +465,6 @@ class Model(nn.Module):
     def _smart_load(self, key):
         """Load model/trainer/validator/predictor."""
         try:
-            print(self.task, key)
             return self.task_map[self.task][key]
         except Exception as e:
             name = self.__class__.__name__

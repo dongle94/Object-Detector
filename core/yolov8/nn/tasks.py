@@ -411,52 +411,52 @@ def temporary_modules(modules=None):
                 del sys.modules[old]
 
 
-def torch_safe_load(weight):
-    """
-    This function attempts to load a PyTorch model with the torch.load() function. If a ModuleNotFoundError is raised,
-    it catches the error, logs a warning message, and attempts to install the missing module via the
-    check_requirements() function. After installation, the function again attempts to load the model using torch.load().
-
-    Args:
-        weight (str): The file path of the PyTorch model.
-
-    Returns:
- downloads.py       (dict): The loaded PyTorch model.
-    """
-    from core.yolov8.utils.downloads import attempt_download_asset
-
-    check_suffix(file=weight, suffix=".pt")
-    file = attempt_download_asset(weight)  # search online if missing locally
-    try:
-        with temporary_modules(
-            {
-                "ultralytics.yolo.utils": "ultralytics.utils",
-                "ultralytics.yolo.v8": "ultralytics.models.yolo",
-                "ultralytics.yolo.data": "ultralytics.data",
-            }
-        ):  # for legacy 8.0 Classify and Pose models
-            return torch.load(file, map_location="cpu"), file  # load
-
-    except ModuleNotFoundError as e:  # e.name is missing module name
-        if e.name == "models":
-            raise TypeError(
-                emojis(
-                    f"ERROR ❌️ {weight} appears to be an Ultralytics YOLOv5 model originally trained "
-                    f"with https://github.com/ultralytics/yolov5.\nThis model is NOT forwards compatible with "
-                    f"YOLOv8 at https://github.com/ultralytics/ultralytics."
-                    f"\nRecommend fixes are to train a new model using the latest 'ultralytics' package or to "
-                    f"run a command with an official YOLOv8 model, i.e. 'yolo predict model=yolov8n.pt'"
-                )
-            ) from e
-        LOGGER.warning(
-            f"WARNING ⚠️ {weight} appears to require '{e.name}', which is not in ultralytics requirements."
-            f"\nAutoInstall will run now for '{e.name}' but this feature will be removed in the future."
-            f"\nRecommend fixes are to train a new model using the latest 'ultralytics' package or to "
-            f"run a command with an official YOLOv8 model, i.e. 'yolo predict model=yolov8n.pt'"
-        )
-        check_requirements(e.name)  # install missing module
-
-        return torch.load(file, map_location="cpu"), file  # load
+# def torch_safe_load(weight):
+#     """
+#     This function attempts to load a PyTorch model with the torch.load() function. If a ModuleNotFoundError is raised,
+#     it catches the error, logs a warning message, and attempts to install the missing module via the
+#     check_requirements() function. After installation, the function again attempts to load the model using torch.load().
+#
+#     Args:
+#         weight (str): The file path of the PyTorch model.
+#
+#     Returns:
+#  downloads.py       (dict): The loaded PyTorch model.
+#     """
+#     from core.yolov8.utils.downloads import attempt_download_asset
+#
+#     check_suffix(file=weight, suffix=".pt")
+#     file = attempt_download_asset(weight)  # search online if missing locally
+#     try:
+#         with temporary_modules(
+#             {
+#                 "ultralytics.yolo.utils": "ultralytics.utils",
+#                 "ultralytics.yolo.v8": "ultralytics.models.yolo",
+#                 "ultralytics.yolo.data": "ultralytics.data",
+#             }
+#         ):  # for legacy 8.0 Classify and Pose models
+#             return torch.load(file, map_location="cpu"), file  # load
+#
+#     except ModuleNotFoundError as e:  # e.name is missing module name
+#         if e.name == "models":
+#             raise TypeError(
+#                 emojis(
+#                     f"ERROR ❌️ {weight} appears to be an Ultralytics YOLOv5 model originally trained "
+#                     f"with https://github.com/ultralytics/yolov5.\nThis model is NOT forwards compatible with "
+#                     f"YOLOv8 at https://github.com/ultralytics/ultralytics."
+#                     f"\nRecommend fixes are to train a new model using the latest 'ultralytics' package or to "
+#                     f"run a command with an official YOLOv8 model, i.e. 'yolo predict model=yolov8n.pt'"
+#                 )
+#             ) from e
+#         LOGGER.warning(
+#             f"WARNING ⚠️ {weight} appears to require '{e.name}', which is not in ultralytics requirements."
+#             f"\nAutoInstall will run now for '{e.name}' but this feature will be removed in the future."
+#             f"\nRecommend fixes are to train a new model using the latest 'ultralytics' package or to "
+#             f"run a command with an official YOLOv8 model, i.e. 'yolo predict model=yolov8n.pt'"
+#         )
+#         check_requirements(e.name)  # install missing module
+#
+#         return torch.load(file, map_location="cpu"), file  # load
 
 
 def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
@@ -499,31 +499,31 @@ def attempt_load_weights(weights, device=None, inplace=True, fuse=False):
     return ensemble
 
 
-def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
-    """Loads a single model weights."""
-    ckpt, weight = torch_safe_load(weight)  # load ckpt
-    args = {**DEFAULT_CFG_DICT, **(ckpt.get("train_args", {}))}  # combine model and default args, preferring model args
-    model = (ckpt.get("ema") or ckpt["model"]).to(device).float()  # FP32 model
-
-    # Model compatibility updates
-    model.args = {k: v for k, v in args.items() if k in DEFAULT_CFG_KEYS}  # attach args to model
-    model.pt_path = weight  # attach *.pt file path to model
-    model.task = guess_model_task(model)
-    if not hasattr(model, "stride"):
-        model.stride = torch.tensor([32.0])
-
-    model = model.fuse().eval() if fuse and hasattr(model, "fuse") else model.eval()  # model in eval mode
-
-    # Module updates
-    for m in model.modules():
-        t = type(m)
-        if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB):
-            m.inplace = inplace
-        elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
-            m.recompute_scale_factor = None  # torch 1.11.0 compatibility
-
-    # Return model and ckpt
-    return model, ckpt
+# def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
+#     """Loads a single model weights."""
+#     ckpt, weight = torch_safe_load(weight)  # load ckpt
+#     args = {**DEFAULT_CFG_DICT, **(ckpt.get("train_args", {}))}  # combine model and default args, preferring model args
+#     model = (ckpt.get("ema") or ckpt["model"]).to(device).float()  # FP32 model
+#
+#     # Model compatibility updates
+#     model.args = {k: v for k, v in args.items() if k in DEFAULT_CFG_KEYS}  # attach args to model
+#     model.pt_path = weight  # attach *.pt file path to model
+#     model.task = guess_model_task(model)
+#     if not hasattr(model, "stride"):
+#         model.stride = torch.tensor([32.0])
+#
+#     model = model.fuse().eval() if fuse and hasattr(model, "fuse") else model.eval()  # model in eval mode
+#
+#     # Module updates
+#     for m in model.modules():
+#         t = type(m)
+#         if t in (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Segment, Pose, OBB):
+#             m.inplace = inplace
+#         elif t is nn.Upsample and not hasattr(m, "recompute_scale_factor"):
+#             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
+#
+#     # Return model and ckpt
+#     return model, ckpt
 
 
 def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
@@ -663,77 +663,77 @@ def guess_model_scale(model_path):
     return ""
 
 
-def guess_model_task(model):
-    """
-    Guess the task of a PyTorch model from its architecture or configuration.
-
-    Args:
-        model (nn.Module | dict): PyTorch model or model configuration in YAML format.
-
-    Returns:
-        (str): Task of the model ('detect', 'segment', 'classify', 'pose').
-
-    Raises:
-        SyntaxError: If the task of the model could not be determined.
-    """
-
-    def cfg2task(cfg):
-        """Guess from YAML dictionary."""
-        m = cfg["head"][-1][-2].lower()  # output module name
-        if m in ("classify", "classifier", "cls", "fc"):
-            return "classify"
-        if m == "detect":
-            return "detect"
-        if m == "segment":
-            return "segment"
-        if m == "pose":
-            return "pose"
-        if m == "obb":
-            return "obb"
-
-    # Guess from model cfg
-    if isinstance(model, dict):
-        with contextlib.suppress(Exception):
-            return cfg2task(model)
-
-    # Guess from PyTorch model
-    if isinstance(model, nn.Module):  # PyTorch model
-        for x in "model.args", "model.model.args", "model.model.model.args":
-            with contextlib.suppress(Exception):
-                return eval(x)["task"]
-        for x in "model.yaml", "model.model.yaml", "model.model.model.yaml":
-            with contextlib.suppress(Exception):
-                return cfg2task(eval(x))
-
-        for m in model.modules():
-            if isinstance(m, Detect):
-                return "detect"
-            elif isinstance(m, Segment):
-                return "segment"
-            elif isinstance(m, Classify):
-                return "classify"
-            elif isinstance(m, Pose):
-                return "pose"
-            elif isinstance(m, OBB):
-                return "obb"
-
-    # Guess from model filename
-    if isinstance(model, (str, Path)):
-        model = Path(model)
-        if "-seg" in model.stem or "segment" in model.parts:
-            return "segment"
-        elif "-cls" in model.stem or "classify" in model.parts:
-            return "classify"
-        elif "-pose" in model.stem or "pose" in model.parts:
-            return "pose"
-        elif "-obb" in model.stem or "obb" in model.parts:
-            return "obb"
-        elif "detect" in model.parts:
-            return "detect"
-
-    # Unable to determine task from model
-    LOGGER.warning(
-        "WARNING ⚠️ Unable to automatically guess model task, assuming 'task=detect'. "
-        "Explicitly define task for your model, i.e. 'task=detect', 'segment', 'classify','pose' or 'obb'."
-    )
-    return "detect"  # assume detect
+# def guess_model_task(model):
+#     """
+#     Guess the task of a PyTorch model from its architecture or configuration.
+#
+#     Args:
+#         model (nn.Module | dict): PyTorch model or model configuration in YAML format.
+#
+#     Returns:
+#         (str): Task of the model ('detect', 'segment', 'classify', 'pose').
+#
+#     Raises:
+#         SyntaxError: If the task of the model could not be determined.
+#     """
+#
+#     def cfg2task(cfg):
+#         """Guess from YAML dictionary."""
+#         m = cfg["head"][-1][-2].lower()  # output module name
+#         if m in ("classify", "classifier", "cls", "fc"):
+#             return "classify"
+#         if m == "detect":
+#             return "detect"
+#         if m == "segment":
+#             return "segment"
+#         if m == "pose":
+#             return "pose"
+#         if m == "obb":
+#             return "obb"
+#
+#     # Guess from model cfg
+#     if isinstance(model, dict):
+#         with contextlib.suppress(Exception):
+#             return cfg2task(model)
+#
+#     # Guess from PyTorch model
+#     if isinstance(model, nn.Module):  # PyTorch model
+#         for x in "model.args", "model.model.args", "model.model.model.args":
+#             with contextlib.suppress(Exception):
+#                 return eval(x)["task"]
+#         for x in "model.yaml", "model.model.yaml", "model.model.model.yaml":
+#             with contextlib.suppress(Exception):
+#                 return cfg2task(eval(x))
+#
+#         for m in model.modules():
+#             if isinstance(m, Detect):
+#                 return "detect"
+#             elif isinstance(m, Segment):
+#                 return "segment"
+#             elif isinstance(m, Classify):
+#                 return "classify"
+#             elif isinstance(m, Pose):
+#                 return "pose"
+#             elif isinstance(m, OBB):
+#                 return "obb"
+#
+#     # Guess from model filename
+#     if isinstance(model, (str, Path)):
+#         model = Path(model)
+#         if "-seg" in model.stem or "segment" in model.parts:
+#             return "segment"
+#         elif "-cls" in model.stem or "classify" in model.parts:
+#             return "classify"
+#         elif "-pose" in model.stem or "pose" in model.parts:
+#             return "pose"
+#         elif "-obb" in model.stem or "obb" in model.parts:
+#             return "obb"
+#         elif "detect" in model.parts:
+#             return "detect"
+#
+#     # Unable to determine task from model
+#     LOGGER.warning(
+#         "WARNING ⚠️ Unable to automatically guess model task, assuming 'task=detect'. "
+#         "Explicitly define task for your model, i.e. 'task=detect', 'segment', 'classify','pose' or 'obb'."
+#     )
+#     return "detect"  # assume detect
