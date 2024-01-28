@@ -3,6 +3,6 @@
 from core.yolov8.models.yolo import detect
 #from core.yolov8.models.yolo import obb
 
-from .model import YOLO, YOLOV8
+from .model import YOLOV8
 
-__all__ = "detect", "YOLO", "YOLOV8",  # "obb"
+__all__ = "detect", "YOLOV8",  # "obb"
